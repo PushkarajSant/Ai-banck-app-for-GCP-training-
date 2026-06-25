@@ -84,7 +84,7 @@ else
   echo "No DOCKER_IMAGE specified. Falling back to local build from GitHub..."
   CLONE_DIR="/opt/AI-BankApp-DevOps"
   rm -rf "$CLONE_DIR"
-  git clone "https://github.com/TrainWithShubham/AI-BankApp-DevOps.git" "$CLONE_DIR"
+  git clone "https://github.com/PushkarajSant/Ai-banck-app-for-GCP-training-.git" "$CLONE_DIR"
   cd "$CLONE_DIR"
   docker build -t bankapp:gcp-demo .
 fi
