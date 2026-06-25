@@ -4,43 +4,47 @@ set -euxo pipefail
 # Redirect logs
 exec > >(tee -a /var/log/ollama-startup.log) 2>&1
 
-echo "Starting Ollama setup..."
+echo "Starting Ollama setup via Docker..."
 
-# 1. Update and install basic tools
-apt-get update
-apt-get install -y curl ca-certificates jq zstd
+# 1. Install Docker using convenience script
+if ! command -v docker &> /dev/null; then
+  echo "Installing Docker..."
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sh get-docker.sh
+  systemctl enable --now docker
+else
+  echo "Docker already installed."
+fi
 
-# 2. Install Ollama natively
-echo "Installing native Ollama..."
-curl -fsSL https://ollama.com/install.sh | sh
+# 2. Run Ollama Docker container
+echo "Starting Ollama container..."
+# Stop and remove existing container if running
+docker stop ollama &>/dev/null || true
+docker rm ollama &>/dev/null || true
 
-# 3. Configure Ollama to listen on all interfaces
-echo "Configuring Ollama service..."
-mkdir -p /etc/systemd/system/ollama.service.d
-cat >/etc/systemd/system/ollama.service.d/override.conf <<'EOF'
-[Service]
-Environment="OLLAMA_HOST=0.0.0.0:11434"
-EOF
+docker run -d \
+  --name ollama \
+  --restart always \
+  -p 11434:11434 \
+  -v ollama-data:/root/.ollama \
+  ollama/ollama
 
-systemctl daemon-reload
-systemctl enable ollama
-systemctl restart ollama
-
-# 4. Wait for Ollama API to be ready
-echo "Waiting for Ollama service to start..."
+# 3. Wait for Ollama service to start
+echo "Waiting for Ollama to start..."
 for i in $(seq 1 30); do
-  if curl -sf http://localhost:11434/api/tags; then
-    echo "Ollama API is ready!"
+  if docker exec ollama ollama list &>/dev/null; then
+    echo "Ollama is ready!"
     break
   fi
   sleep 5
 done
 
-# 5. Pull the model
+# 4. Pull tinyllama model inside the container
 echo "Pulling tinyllama model..."
-ollama pull tinyllama
+docker exec ollama ollama pull tinyllama
 
 # Log state
+docker ps
 echo "Verification:"
-curl -s http://localhost:11434/api/tags
+docker exec ollama ollama list
 echo "Ollama setup complete!"
