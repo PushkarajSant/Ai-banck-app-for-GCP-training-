@@ -81,6 +81,4 @@ To run the complete system (App + Database + AI Engine) on your local developer 
 
 Happy Learning!
 
-**TrainWithShubham**
-
 </div>
