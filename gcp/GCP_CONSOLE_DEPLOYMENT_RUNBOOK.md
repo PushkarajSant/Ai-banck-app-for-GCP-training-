@@ -23,21 +23,6 @@ Student Browser
 
 ---
 
-## Class Timing
-
-| Time | Activity |
-|---|---|
-| 00:00 - 00:10 | Architecture explanation and walkthrough of resource mapping |
-| 00:10 - 00:25 | Create VPC, subnets, NAT, and firewall rules |
-| 00:25 - 00:35 | Create Service Account (Logs Writer only) |
-| 00:35 - 01:00 | Create Cloud SQL Private IP MySQL instance and database |
-| 01:00 - 01:20 | Create Ollama VM and pull `tinyllama` |
-| 01:20 - 01:35 | Create App Instance Template and regional MIG |
-| 01:35 - 01:50 | Create External Application Load Balancer |
-| 01:50 - 02:00 | Verify Application, database records, demo HA, and wrap up |
-
----
-
 ## Resource Naming Cheat Sheet
 
 | Resource | Value |
