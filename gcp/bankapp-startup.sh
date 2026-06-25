@@ -121,7 +121,7 @@ docker run -d \
 # 6. Verify health check
 echo "Verifying application health..."
 for i in $(seq 1 30); do
-  if curl -sf http://127.0.0.1:8080/actuator/health; then
+  if curl -sf http://localhost:8080/actuator/health; then
     echo "Application successfully started and is healthy!"
     break
   fi

@@ -72,7 +72,7 @@ systemctl restart ollama
 # 5. Wait for Ollama API to be ready
 echo "Waiting for Ollama service to start..."
 for i in $(seq 1 30); do
-  if curl -sf http://127.0.0.1:11434/api/tags; then
+  if curl -sf http://localhost:11434/api/tags; then
     echo "Ollama API is ready!"
     break
   fi
@@ -81,10 +81,10 @@ done
 
 # 6. Pull the model
 echo "Pulling tinyllama model..."
-sudo -u ollama env OLLAMA_HOST=127.0.0.1:11434 OLLAMA_MODELS=/var/lib/ollama/models ollama pull tinyllama || ollama pull tinyllama
+sudo -u ollama env OLLAMA_HOST=localhost:11434 OLLAMA_MODELS=/var/lib/ollama/models ollama pull tinyllama || ollama pull tinyllama
 
 # Log state
 echo "Verification:"
-curl -s http://127.0.0.1:11434/api/tags
+curl -s http://localhost:11434/api/tags
 df -h "$MOUNT"
 echo "Ollama setup complete!"
