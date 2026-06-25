@@ -1,6 +1,6 @@
 # GCP 2-Hour Demo Runbook - Console-Based Spring Boot AI Bank
 
-This runbook guides the trainer and students through deploying a real Spring Boot 3 + Java 21 banking application on Google Cloud Platform (GCP). The application runs on private Compute Engine VMs in a Managed Instance Group (MIG) behind an external Application Load Balancer (ALB), connecting to a private Cloud SQL MySQL instance and a private Ollama VM with a persistent disk.
+This runbook guides the trainer and students through deploying a real Spring Boot 3 + Java 21 banking application on Google Cloud Platform (GCP). The application runs on private Compute Engine VMs in a Managed Instance Group (MIG) behind an external Application Load Balancer (ALB), connecting to a private Cloud SQL MySQL instance and a private Ollama VM.
 
 ---
 
@@ -12,14 +12,12 @@ Student Browser
   -> Regional Managed Instance Group (Port 8080)
        -> Cloud SQL MySQL (Private IP Port 3306)
        -> Private Ollama VM (Private IP Port 11434)
-            -> Persistent Disk mounted at /var/lib/ollama
 ```
 
 ### Key Concepts Taught
 - **Zero Public IPs**: Both the app VMs, the database, and the Ollama VM are private.
 - **Cloud NAT**: Allows outbound access for package installations, git clones, and model pulls.
 - **Security Boundaries**: Firewall rules isolate the tiers. Only the load balancer is public.
-- **Persistent Storage**: Retaining Ollama models on a separate disk to separate code/compute from data.
 - **High Availability**: Regional MIG across multiple zones with automatic self-healing.
 - **Simplified Credentials**: App parameters are loaded directly inside the GCE startup script (or via GCE metadata).
 
@@ -33,7 +31,7 @@ Student Browser
 | 00:10 - 00:25 | Create VPC, subnets, NAT, and firewall rules |
 | 00:25 - 00:35 | Create Service Account (Logs Writer only) |
 | 00:35 - 01:00 | Create Cloud SQL Private IP MySQL instance and database |
-| 01:00 - 01:20 | Create Ollama VM with Persistent Disk and pull `tinyllama` |
+| 01:00 - 01:20 | Create Ollama VM and pull `tinyllama` |
 | 01:20 - 01:35 | Create App Instance Template and regional MIG |
 | 01:35 - 01:50 | Create External Application Load Balancer |
 | 01:50 - 02:00 | Verify Application, database records, demo HA, and wrap up |
@@ -58,7 +56,6 @@ Student Browser
 | Cloud SQL Database | `bankapp` |
 | Cloud SQL User | `bankuser` |
 | Ollama VM | `ollama-vm` |
-| Ollama Disk | `ollama-model-disk` (30 GB) |
 | App Template | `bankapp-template-v1` |
 | Managed Instance Group | `bankapp-mig` |
 | Health Check | `bankapp-hc` (HTTP, port `8080`, path `/actuator/health`) |
@@ -75,7 +72,7 @@ Navigate to **APIs & Services -> Library** in the Google Cloud Console. Search a
 1. `Compute Engine API`
 2. `Cloud SQL Admin API`
 3. `Service Networking API`
-4. `Secret Manager API` (Optional - only if pulling from secret manager)
+4. `Secret Manager API` (Optional)
 5. `Cloud Logging API`
 
 ---
@@ -150,7 +147,6 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - Name & ID: `bankapp-sa`
    - Roles:
      - `Logs Writer` (To write system logs)
-2. Note: We do not need Secret Manager configuration or Secrets Accessor roles for this setup since database variables are loaded directly.
 
 ---
 
@@ -176,23 +172,14 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
 
 ---
 
-### 7. Create Persistent Disk & Ollama VM
+### 7. Create Private Ollama VM
 
-1. Go to **Compute Engine -> Disks -> Create disk**.
-   - Name: `ollama-model-disk`
-   - Region/Zone: Zonal -> `asia-south1-a`
-   - Size: `30 GB`
-   - Click **Create**.
-2. Go to **Compute Engine -> VM instances -> Create instance**.
+1. Go to **Compute Engine -> VM instances -> Create instance**.
    - Name: `ollama-vm`
    - Zone: `asia-south1-a`
    - Machine type: `e2-standard-4` (4 vCPUs, 16 GB RAM)
-   - Boot disk: `Debian GNU/Linux 12 (bookworm)`
+   - Boot disk: `Debian GNU/Linux 12 (bookworm)` with standard 20-30 GB size.
    - Service account: `bankapp-sa`
-   - **Disks** (under Advanced options):
-     - Click **Attach existing disk**.
-     - Choose `ollama-model-disk`.
-     - Device name: `ollama-model-disk`
    - **Networking** (under Advanced options):
      - Network tags: `ollama`, `iap-ssh`
      - Network: `production-vpc`
@@ -201,7 +188,7 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - **Management** (under Advanced options -> Automation):
      - Paste the content of `gcp/ollama-startup.sh` in the Startup script text area.
    - Click **Create**.
-3. Copy the **Internal IP** of `ollama-vm` (e.g. `10.10.2.X`) and note it down as `OLLAMA_IP`.
+2. Copy the **Internal IP** of `ollama-vm` (e.g. `10.10.2.X`) and note it down as `OLLAMA_IP`.
 
 ---
 
@@ -310,7 +297,7 @@ Delete resources in the following order to avoid dependency locks:
 1. **Load Balancer**: Network services -> Load balancing -> Delete.
 2. **Managed Instance Group**: Compute Engine -> Instance groups -> Delete `bankapp-mig`.
 3. **Instance Template**: Compute Engine -> Instance templates -> Delete `bankapp-template-v1`.
-4. **Ollama VM & Persistent Disk**: Compute Engine -> VM instances -> Delete `ollama-vm`, then Disks -> Delete `ollama-model-disk`.
+4. **Ollama VM**: Compute Engine -> VM instances -> Delete `ollama-vm`.
 5. **Cloud SQL**: Cloud SQL -> Delete `bankdb`.
 6. **Cloud NAT & Router**: VPC network -> Cloud NAT -> Delete `prod-nat`, then Routers -> Delete `prod-router`.
 7. **Firewall Rules**: VPC network -> Firewall -> Delete the three rules.
