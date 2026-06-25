@@ -317,6 +317,11 @@ All scan reports (OWASP, Trivy, ZAP) are uploaded as downloadable **Artifacts** 
 
 ---
 
+## GCP 2-Hour Bootcamp Deployment
+For step-by-step console deployment instructions on Google Cloud Platform, see [gcp/GCP_CONSOLE_DEPLOYMENT_RUNBOOK.md](gcp/GCP_CONSOLE_DEPLOYMENT_RUNBOOK.md).
+
+---
+
 <div align="center">
 
 Happy Learning
