@@ -8,7 +8,7 @@ echo "Starting Ollama setup..."
 
 # 1. Update and install basic tools
 apt-get update
-apt-get install -y curl ca-certificates jq
+apt-get install -y curl ca-certificates jq zstd
 
 # 2. Install Ollama natively
 echo "Installing native Ollama..."
