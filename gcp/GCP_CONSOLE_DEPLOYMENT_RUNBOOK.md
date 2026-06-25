@@ -178,7 +178,9 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - Name: `ollama-vm`
    - Zone: `asia-south1-a`
    - Machine type: `e2-standard-4` (4 vCPUs, 16 GB RAM)
-   - Boot disk: `Debian GNU/Linux 12 (bookworm)` with standard 20-30 GB size.
+   - Boot disk: 
+     - Operating System: `Debian GNU/Linux 12 (bookworm)`
+     - Size: **Change from 10 GB to 30 GB** (CRITICAL: The `ollama/ollama` Docker image and model files require significant space; leaving the default 10 GB size will cause extraction to fail with a "no space left on device" error).
    - Service account: `bankapp-sa`
    - **Networking** (under Advanced options):
      - Network tags: `ollama`, `iap-ssh`
