@@ -21,6 +21,7 @@ Student Browser
 - **Security Boundaries**: Firewall rules isolate the tiers. Only the load balancer is public.
 - **Persistent Storage**: Retaining Ollama models on a separate disk to separate code/compute from data.
 - **High Availability**: Regional MIG across multiple zones with automatic self-healing.
+- **Simplified Credentials**: App parameters are loaded directly inside the GCE startup script (or via GCE metadata).
 
 ---
 
@@ -30,7 +31,7 @@ Student Browser
 |---|---|
 | 00:00 - 00:10 | Architecture explanation and walkthrough of resource mapping |
 | 00:10 - 00:25 | Create VPC, subnets, NAT, and firewall rules |
-| 00:25 - 00:35 | Create Service Account and Secret Manager DB password |
+| 00:25 - 00:35 | Create Service Account (Logs Writer only) |
 | 00:35 - 01:00 | Create Cloud SQL Private IP MySQL instance and database |
 | 01:00 - 01:20 | Create Ollama VM with Persistent Disk and pull `tinyllama` |
 | 01:20 - 01:35 | Create App Instance Template and regional MIG |
@@ -52,7 +53,6 @@ Student Browser
 | Cloud Router | `prod-router` |
 | Cloud NAT | `prod-nat` |
 | Service Account | `bankapp-sa` |
-| DB Password Secret | `bankapp-db-password` |
 | DB Password Value | `BankDemo@12345` |
 | Cloud SQL Instance | `bankdb` |
 | Cloud SQL Database | `bankapp` |
@@ -75,7 +75,7 @@ Navigate to **APIs & Services -> Library** in the Google Cloud Console. Search a
 1. `Compute Engine API`
 2. `Cloud SQL Admin API`
 3. `Service Networking API`
-4. `Secret Manager API`
+4. `Secret Manager API` (Optional - only if pulling from secret manager)
 5. `Cloud Logging API`
 
 ---
@@ -106,7 +106,7 @@ Navigate to **APIs & Services -> Library** in the Google Cloud Console. Search a
 3. **VPC network**: `production-vpc`
 4. **Region**: `asia-south1`
 5. **Cloud Router**: Select **Create new router** -> Name: `prod-router` -> click **Create**.
-6. **Source**: Custom (Select `app-subnet` and `ai-subnet` to restrict outbound NAT only to our custom subnets)
+6. **Source**: Custom (Select `app-subnet` and `ai-subnet` to restrict NAT only to our subnets)
 7. Click **Create**.
 
 ---
@@ -144,17 +144,13 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
 
 ---
 
-### 5. Create Service Account and Secret
+### 5. Create Service Account
 
 1. Go to **IAM & Admin -> Service Accounts -> Create service account**.
    - Name & ID: `bankapp-sa`
    - Roles:
-     - `Secret Manager Secret Accessor` (To read DB credentials)
-     - `Logs Writer` (To write logs)
-2. Go to **Security -> Secret Manager -> Create secret**.
-   - Name: `bankapp-db-password`
-   - Secret value: `BankDemo@12345`
-   - Click **Create secret**.
+     - `Logs Writer` (To write system logs)
+2. Note: We do not need Secret Manager configuration or Secrets Accessor roles for this setup since database variables are loaded directly.
 
 ---
 
@@ -196,7 +192,7 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - **Disks** (under Advanced options):
      - Click **Attach existing disk**.
      - Choose `ollama-model-disk`.
-     - Device name: `ollama-model-disk` (Crucial! Do not use custom name)
+     - Device name: `ollama-model-disk`
    - **Networking** (under Advanced options):
      - Network tags: `ollama`, `iap-ssh`
      - Network: `production-vpc`
@@ -213,7 +209,7 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
 
 1. Go to **Compute Engine -> Instance templates -> Create instance template**.
 2. **Name**: `bankapp-template-v1`
-3. **Machine type**: `e2-small` or `e2-medium`
+3. **Machine type**: `e2-small`
 4. **Boot disk**: `Debian GNU/Linux 12 (bookworm)`
 5. **Service account**: `bankapp-sa`
 6. **Networking** (under Advanced options):
@@ -221,39 +217,35 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - Network: `production-vpc`
    - Subnetwork: `app-subnet`
    - External IP: **None**
-7. **Metadata** (under Advanced options -> Management):
-   Add the following metadata keys and values:
-   - `PROJECT_ID` = `[YOUR_GCP_PROJECT_ID]`
-   - `DB_HOST` = `[YOUR_CLOUD_SQL_PRIVATE_IP]`
-   - `DB_NAME` = `bankapp`
-   - `DB_USER` = `bankuser`
-   - `DB_PASSWORD_SECRET` = `bankapp-db-password`
-   - `OLLAMA_URL` = `http://[OLLAMA_VM_PRIVATE_IP]:11434`
-8. **Startup script** (under Advanced options -> Management -> Automation):
-   - Paste the content of `gcp/bankapp-startup.sh` in the Startup script text area.
-9. Click **Create**.
+7. **Startup script** (under Advanced options -> Management -> Automation):
+   Open `gcp/bankapp-startup.sh` and edit the values at the top of the file before pasting:
+   ```bash
+   DB_HOST="[YOUR_CLOUD_SQL_PRIVATE_IP]" # Replace with Cloud SQL Private IP
+   OLLAMA_URL="http://[YOUR_OLLAMA_VM_PRIVATE_IP]:11434" # Replace with Ollama VM Private IP
+   ```
+   Paste the modified script in the GCE Startup script box.
+   
+   *(Alternative: If you leave the script placeholder keys intact, you must configure GCE Custom Metadata under **Advanced Options -> Management -> Metadata** with keys `DB_HOST` and `OLLAMA_URL` set to their respective private IPs).*
+8. Click **Create**.
 
 ---
 
-### 9. Create Regional MIG
+### 9. Create Regional Managed Instance Group
 
 1. Go to **Compute Engine -> Instance groups -> Create instance group**.
 2. **Name**: `bankapp-mig`
 3. **Instance template**: `bankapp-template-v1`
-4. **Location**: Multiple zones
-5. **Region**: `asia-south1`
-6. **Zones**: `asia-south1-a`, `asia-south1-b`
-7. **Target distribution shape**: Evenly distributed
-8. **Autoscaling**: Off (Set fixed size to `2` instances)
-9. **Autohealing**:
+4. **Location**: Multiple zones -> `asia-south1` -> Zones `asia-south1-a`, `asia-south1-b`
+5. **Autoscaling**: Off (Set fixed size to `2` instances)
+6. **Autohealing**:
    - Health check: Select **Create a health check**
-   - Health Check Name: `bankapp-hc`
+   - Name: `bankapp-hc`
    - Protocol: **HTTP**
    - Port: `8080`
    - Request path: `/actuator/health`
    - Click **Save**.
-10. Click **Create**.
-11. Once the MIG is created, select it, click **Edit**, and configure a **Named Port**:
+7. Click **Create**.
+8. Once the MIG is created, select it, click **Edit**, and configure a **Named Port**:
     - Name: `http`
     - Port: `8080`
     - Click **Save**.
@@ -275,7 +267,7 @@ Create the following three Ingress rules under **VPC network -> Firewall -> Crea
    - Backend type: **Instance group**
    - Protocol: `HTTP`
    - Named port: `http`
-   - Backends: Select `bankapp-mig` -> Port numbers: `8080` (or Named Port: `http`)
+   - Backends: Select `bankapp-mig` -> Port numbers: `8080`
    - Health check: `bankapp-hc`
    - Click **Create**.
 5. **Routing rules**: Simple host and path rule -> maps all traffic to `bankapp-backend`.
@@ -323,4 +315,4 @@ Delete resources in the following order to avoid dependency locks:
 6. **Cloud NAT & Router**: VPC network -> Cloud NAT -> Delete `prod-nat`, then Routers -> Delete `prod-router`.
 7. **Firewall Rules**: VPC network -> Firewall -> Delete the three rules.
 8. **VPC Network**: VPC network -> VPC networks -> Delete `production-vpc`.
-9. **Service Account & Secrets**: IAM & Admin -> Service accounts -> Delete `bankapp-sa`, and Secret Manager -> Delete `bankapp-db-password`.
+9. **Service Account**: IAM & Admin -> Service accounts -> Delete `bankapp-sa`.
